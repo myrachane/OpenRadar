@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenRadar - Live Flight Tracker</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; }
+        #map { width: 100vw; height: 100vh; }
+        .loading {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: white; padding: 10px 20px; border-radius: 5px;
+            z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading" class="loading">Fetching live airspace data...</div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // 1. Initialize the Map
+        // Centering on Central Europe for this example
+        const map = L.map('map').setView([50.0, 10.0], 5);
+        
+        // Add OpenStreetMap tiles (the base map)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Store markers to update/remove them later
+        let flightMarkers = {};
+        const loadingStatus = document.getElementById('loading');
+
+        // 2. Fetch Data from OpenSky API
+        async function fetchAirTraffic() {
+            loadingStatus.style.display = 'block';
+            
+            // We use a bounding box (lamin, lomin, lamax, lomax) to limit the data.
+            // Fetching the entire globe without an account will cause rate limiting.
+            // Box roughly covers UK, France, Germany.
+            const url = 'https://opensky-network.org/api/states/all?lamin=45.0&lomin=-5.0&lamax=55.0&lomax=15.0';
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Rate limited or network error");
+                const data = await response.json();
+                
+                updateMap(data.states);
+            } catch (error) {
+                console.error("Error fetching flight data:", error);
+                loadingStatus.innerText = "Error fetching data (Rate limited?)";
+            } finally {
+                setTimeout(() => loadingStatus.style.display = 'none', 1500);
+            }
+        }
+
+        // 3. Process and Plot the Planes
+        function updateMap(states) {
+            if (!states) return;
+
+            // Clear old markers for simplicity 
+            // (In a pro app, you would smoothly animate existing markers to their new coordinates)
+            for (let id in flightMarkers) {
+                map.removeLayer(flightMarkers[id]);
+            }
+            flightMarkers = {};
+
+            states.forEach(flight => {
+                // OpenSky returns an array of data. We extract what we need by index.
+                const icao24 = flight[0];
+                const callsign = flight[1] ? flight[1].trim() : 'Unknown';
+                const long = flight[5];
+                const lat = flight[6];
+                const altitude = flight[7] || 0; // Barometric altitude in meters
+                const velocity = flight[9] || 0; // m/s
+                const onGround = flight[8];
+
+                // Only plot planes that are currently in the air and have valid coordinates
+                if (lat && long && !onGround) {
+                    const speedKmh = Math.round(velocity * 3.6);
+                    
+                    const marker = L.marker([lat, long])
+                        .bindPopup(`
+                            <strong>Flight: ${callsign}</strong><br>
+                            Altitude: ${altitude} m<br>
+                            Speed: ${speedKmh} km/h<br>
+                            ICAO: ${icao24}
+                        `)
+                        .addTo(map);
+                    
+                    flightMarkers[icao24] = marker;
+                }
+            });
+        }
+
+        // 4. Run the tracker
+        fetchAirTraffic();
+        
+        // Refresh every 15 seconds 
+        // Note: OpenSky allows unauthenticated users ~400 requests a day. 
+        // 15 seconds is a safe interval for testing.
+        setInterval(fetchAirTraffic, 15000); 
+
+    </script>
+</body>
+</html>
