@@ -26,17 +26,15 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        // 1. Initialize the Map
-        // Centering on Central Europe for this example
+    
         const map = L.map('map').setView([50.0, 10.0], 5);
         
-        // Add OpenStreetMap tiles (the base map)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Store markers to update/remove them later
+
         let flightMarkers = {};
         const loadingStatus = document.getElementById('loading');
 
@@ -44,9 +42,7 @@
         async function fetchAirTraffic() {
             loadingStatus.style.display = 'block';
             
-            // We use a bounding box (lamin, lomin, lamax, lomax) to limit the data.
-            // Fetching the entire globe without an account will cause rate limiting.
-            // Box roughly covers UK, France, Germany.
+           
             const url = 'https://opensky-network.org/api/states/all?lamin=45.0&lomin=-5.0&lamax=55.0&lomax=15.0';
             
             try {
@@ -63,19 +59,17 @@
             }
         }
 
-        // 3. Process and Plot the Planes
+      
         function updateMap(states) {
             if (!states) return;
 
-            // Clear old markers for simplicity 
-            // (In a pro app, you would smoothly animate existing markers to their new coordinates)
             for (let id in flightMarkers) {
                 map.removeLayer(flightMarkers[id]);
             }
             flightMarkers = {};
 
             states.forEach(flight => {
-                // OpenSky returns an array of data. We extract what we need by index.
+                /
                 const icao24 = flight[0];
                 const callsign = flight[1] ? flight[1].trim() : 'Unknown';
                 const long = flight[5];
@@ -106,8 +100,6 @@
         fetchAirTraffic();
         
         // Refresh every 15 seconds 
-        // Note: OpenSky allows unauthenticated users ~400 requests a day. 
-        // 15 seconds is a safe interval for testing.
         setInterval(fetchAirTraffic, 15000); 
 
     </script>
